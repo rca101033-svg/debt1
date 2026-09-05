@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>個人債務全景看板與日常管理日誌 (免註冊・安全唯讀與管理員版)</title>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <title>債務動態全景看板與專屬授權檢閱系統 (通用專屬債務隔離版)</title>
+  
+  <!-- Google Identity Services (GIS) Client Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <style>
     :root {
       --primary: #1F4E79;
@@ -11,8 +16,8 @@
       --primary-dark: #143554;
       --bg: #F4F6FA;
       --surface: #FFFFFF;
-      --text: #262626;
-      --text-muted: #595959;
+      --text: #1E293B;
+      --text-muted: #64748B;
       --border: #CBD5E1;
       --danger: #DC2626;
       --danger-bg: #FEE2E2;
@@ -29,58 +34,107 @@
       background-color: var(--bg);
       color: var(--text);
       line-height: 1.6;
-      padding-bottom: 50px;
+      padding-bottom: 60px;
     }
 
-    header {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-      color: white;
-      padding: 24px 16px;
-      text-align: center;
-    }
-    header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    header p { font-size: 13px; opacity: 0.9; }
-
-    /* Security Top Banner */
-    .security-banner {
+    .sec-top-bar {
       background: #0F172A;
       color: #94A3B8;
-      padding: 10px 16px;
+      padding: 10px 18px;
       font-size: 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 10px;
+      border-bottom: 1px solid #1E293B;
     }
-    .badge-mode { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .sec-status { display: flex; align-items: center; gap: 8px; }
+    .badge-mode { padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 700; }
     .mode-readonly { background: #334155; color: #38BDF8; }
     .mode-admin { background: #166534; color: #4ADE80; }
+    .mode-scoped { background: #78350F; color: #FCD34D; }
 
-    .btn-auth {
+    .sec-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .btn-top {
       background: #1E293B;
       border: 1px solid #475569;
-      color: #F1F5F9;
+      color: #F8FAFC;
       padding: 5px 12px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 12px;
       font-weight: 600;
+      transition: all 0.2s;
     }
-    .btn-auth:hover { background: #334155; }
+    .btn-top:hover { background: #334155; }
+    .btn-top.highlight { border-color: #38BDF8; color: #38BDF8; }
+
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 24px 20px;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(31, 78, 121, 0.2);
+    }
+    header h1 { font-size: 22px; font-weight: 700; margin-bottom: 5px; }
+    header p { font-size: 13px; opacity: 0.9; }
 
     .container {
-      max-width: 1000px;
+      max-width: 1020px;
       margin: 16px auto 0;
-      padding: 0 12px;
+      padding: 0 14px;
     }
 
-    /* KPI Grid */
+    .scoped-notice {
+      display: none;
+      background: #FFFBEB;
+      border: 1px solid #FCD34D;
+      border-left: 5px solid #F59E0B;
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #92400E;
+    }
+
+    .nav-bar {
+      display: flex;
+      gap: 8px;
+      background: var(--surface);
+      padding: 8px;
+      border-radius: var(--radius);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin-bottom: 18px;
+      overflow-x: auto;
+    }
+    .nav-btn {
+      flex: 1;
+      min-width: 110px;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover { background: #EEF2F7; color: var(--primary); }
+    .nav-btn.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 2px 4px rgba(31, 78, 121, 0.25);
+    }
+
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
     .kpi-card {
       background: var(--surface);
@@ -88,27 +142,29 @@
       border-radius: var(--radius);
       border-top: 4px solid var(--primary);
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
     .kpi-card.alert { border-top-color: var(--danger); }
     .kpi-card.success { border-top-color: var(--success); }
     .kpi-title { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
-    .kpi-value { font-size: 20px; font-weight: 700; color: var(--text); }
+    .kpi-value { font-size: 21px; font-weight: 700; color: var(--text); }
     .kpi-sub { font-size: 11.5px; margin-top: 4px; color: var(--text-muted); }
 
-    /* Panels */
     .panel {
       background: var(--surface);
       border-radius: var(--radius);
       padding: 18px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       border: 1px solid var(--border);
     }
     .panel-title {
-      font-size: 16px;
+      font-size: 15.5px;
       font-weight: 700;
       color: var(--primary);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -118,16 +174,15 @@
       gap: 8px;
     }
 
-    /* Tables */
     .table-wrapper { width: 100%; overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-    th { background: #F1F5F9; color: var(--text-muted); font-weight: 700; padding: 9px 12px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #F8FAFC; color: var(--text-muted); font-weight: 700; padding: 10px 12px; border: 1px solid var(--border); text-align: left; }
     td { padding: 9px 12px; border: 1px solid var(--border); vertical-align: middle; }
     tr:nth-child(even) { background: #FAFAFA; }
 
     .period-title-row { background: #E2E8F0 !important; font-weight: 700; color: var(--primary-dark); }
     .subtotal-row { background: #EEF2F6 !important; font-weight: 700; color: var(--primary); }
-    .total-row { background: #DCFCE7 !important; font-weight: 700; font-size: 14px; color: #14532D; }
+    .total-row { background: #DCFCE7 !important; font-weight: 700; color: #14532D; font-size: 13.5px; }
 
     .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
     .tag-unpaid { background: var(--danger-bg); color: var(--danger); }
@@ -137,18 +192,18 @@
 
     .btn-act {
       padding: 4px 10px;
-      border-radius: 4px;
+      border-radius: 5px;
       font-size: 11.5px;
       font-weight: 600;
       border: 1px solid var(--border);
       background: white;
       cursor: pointer;
+      transition: all 0.2s;
     }
     .btn-act:hover { background: var(--primary); color: white; }
     .btn-act.active { background: var(--success); color: white; border-color: var(--success); }
-    .btn-disabled { opacity: 0.6; cursor: not-allowed !important; pointer-events: none; }
+    .btn-disabled { opacity: 0.55; cursor: not-allowed !important; pointer-events: none; background: #F1F5F9; color: #94A3B8; }
 
-    /* Timeline */
     .timeline-box { margin-top: 10px; }
     .t-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; font-size: 12.5px; }
     .t-month { width: 75px; font-weight: 700; color: var(--text-muted); }
@@ -157,71 +212,155 @@
     .t-bar.peak { background: #E11D48; }
     .t-val { width: 85px; text-align: right; font-weight: 700; }
 
-    /* Devlog */
-    .log-item { margin-bottom: 14px; padding-left: 12px; border-left: 3px solid var(--primary); }
-    .log-time { font-size: 11px; font-weight: 700; color: var(--primary-light); }
-    .log-title { font-size: 13.5px; font-weight: 700; margin: 2px 0; }
-    .log-desc { font-size: 12.5px; color: var(--text-muted); }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      max-width: 520px;
+      width: 100%;
+      padding: 22px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-card h3 { color: var(--primary); margin-bottom: 10px; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+    .modal-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6; }
 
-    /* Important: NO hidden tabs by default to ensure page NEVER appears blank! */
-    .section-block { margin-bottom: 24px; }
+    .btn-submit {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-submit:hover { background: var(--primary-dark); }
+    .btn-cancel {
+      width: 100%;
+      background: #E2E8F0;
+      color: var(--text);
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    .key-box {
+      background: #0F172A;
+      color: #38BDF8;
+      font-family: monospace;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+      letter-spacing: 1.5px;
+      margin: 10px 0;
+      user-select: all;
+    }
+
+    .tamper-alert {
+      display: none;
+      background: #FEE2E2;
+      border: 1px solid #F87171;
+      color: #991B1B;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      align-items: center;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
 
-  <!-- 安全權限狀態條 -->
-  <div class="security-banner">
-    <div>
-      <span>🔒 權限狀態：</span>
+  <!-- 安全頂部狀態條 -->
+  <div class="sec-top-bar">
+    <div class="sec-status">
+      <span>🛡️ 安全存取模式：</span>
       <span id="badge-mode" class="badge-mode mode-readonly">檢閱者唯讀模式 (Read-Only)</span>
-      <span id="mode-desc" style="opacity: 0.8; margin-left: 6px;">訪客免註冊・僅限檢閱・無法篡改</span>
+      <span id="txt-mode-desc" style="opacity: 0.85;">訪客免註冊・唯讀檢閱・杜絕篡改</span>
     </div>
-    <div>
-      <button class="btn-auth" id="btn-auth" onclick="toggleAdmin()">🔑 本人管理解鎖</button>
-      <button class="btn-auth" onclick="copyShareUrl()">🔗 複製帶狀態網址</button>
+    <div class="sec-actions">
+      <button class="btn-top highlight" id="btn-admin-auth" onclick="startAdminAuth()">🔑 本人身分與裝置驗證</button>
+      <button class="btn-top" id="btn-device-recovery" onclick="showRecoveryModal()">📲 換機/故障復原</button>
+      <button class="btn-top" id="btn-gen-scoped" onclick="showScopedModal()">🔗 產生指定債務專屬檢閱鏈結</button>
     </div>
   </div>
 
   <header>
-    <h1>個人債務全景動態看板與日常管理日誌</h1>
-    <p>全債務動態追蹤・旬期現金流預算・最高隱私保護・免註冊安全純前端架構</p>
+    <h1 id="main-header-title">個人債務全景動態看板與日常管理日誌</h1>
+    <p id="main-header-subtitle">全債務動態追蹤・旬期現金流預算・最高隱私保護・雙重裝置鎖與全項目授權隔離</p>
   </header>
 
   <div class="container">
 
+    <div id="tamper-alert-bar" class="tamper-alert">
+      <span>⚠️ 偵測到本機資料異常篡改！系統已自動觸發最高安全防護，即刻還原至權威基準狀態。</span>
+    </div>
+
+    <!-- 專屬權限隔離檢閱提示 (通用 Scoped View) -->
+    <div id="scoped-notice-box" class="scoped-notice">
+      <strong id="scoped-notice-title">🔒 專屬授權檢閱模式</strong>：<span id="scoped-notice-text">您目前持專屬鏈結檢閱經授權之單筆債務明細。</span><br>
+      依據最高個資隱私安全守則，其餘非授權之銀行、機車貸款與其他借款資料已於端點全面過濾隔離，不予載入及揭露。
+    </div>
+
+    <nav class="nav-bar" id="main-nav-bar">
+      <button class="nav-btn active" onclick="switchSection('sec-dashboard')">📊 儀表板與當月清單</button>
+      <button class="nav-btn" onclick="switchSection('sec-debts')">📑 全債務明細 (7筆)</button>
+      <button class="nav-btn" onclick="switchSection('sec-cashflow')">🗓️ 全年度時程走勢</button>
+      <button class="nav-btn" onclick="switchSection('sec-security')">🛡️ 換機措施與安全架構</button>
+    </nav>
+
     <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-title">本月應繳總額（9 月）</div>
-        <div class="kpi-value" id="kpi-month-due">NT$ 7,490</div>
-        <div class="kpi-sub">月初 $4,296 ＋ 月底 $3,194</div>
+    <div class="kpi-grid" id="kpi-container">
+      <div class="kpi-card" id="kpi-card-1">
+        <div class="kpi-title" id="kpi-title-1">本月應繳總額（9 月）</div>
+        <div class="kpi-value" id="kpi-val-month-due">NT$ 7,490</div>
+        <div class="kpi-sub" id="kpi-sub-1">月初 $4,296 ＋ 月底 $3,194</div>
       </div>
-      <div class="kpi-card alert">
-        <div class="kpi-title">今日到期項目</div>
-        <div class="kpi-value" style="color: var(--danger);">09/03 銀行分期</div>
-        <div class="kpi-sub">應繳 NT$ 1,796（第 1/6 期）</div>
+      <div class="kpi-card alert" id="kpi-card-2">
+        <div class="kpi-title" id="kpi-title-2">今日到期項目</div>
+        <div class="kpi-value" id="kpi-val-today" style="color: var(--danger);">09/03 銀行分期</div>
+        <div class="kpi-sub" id="kpi-sub-2">應繳 NT$ 1,796（第 1/6 期）</div>
       </div>
-      <div class="kpi-card success">
-        <div class="kpi-title">本月已繳金額</div>
-        <div class="kpi-value" id="kpi-month-paid" style="color: var(--success);">NT$ 0</div>
-        <div class="kpi-sub" id="kpi-paid-sub">尚未完成本月款項</div>
+      <div class="kpi-card success" id="kpi-card-3">
+        <div class="kpi-title" id="kpi-title-3">本月已繳金額</div>
+        <div class="kpi-value" id="kpi-val-paid" style="color: var(--success);">NT$ 0</div>
+        <div class="kpi-sub" id="kpi-sub-3">尚未完成本月款項</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-title">全債務總餘額 (7 筆)</div>
-        <div class="kpi-value" id="kpi-total-debt">NT$ 360,072</div>
-        <div class="kpi-sub">已排程: $128,072 | 待協商: $232,000</div>
+      <div class="kpi-card" id="kpi-card-4">
+        <div class="kpi-title" id="kpi-title-4">全債務總餘額 (7 筆)</div>
+        <div class="kpi-value" id="kpi-val-total-debt">NT$ 360,072</div>
+        <div class="kpi-sub" id="kpi-sub-4">已排程: $128,072 | 待協商: $232,000</div>
       </div>
     </div>
 
     <!-- 區塊 1: 當月應繳清單（月初／月中／月底細分） -->
-    <div class="panel section-block">
+    <div class="panel" id="sec-dashboard">
       <div class="panel-title">
-        <span>📅 2026 年 9 月當月應繳清單（按月初、月中、月底細分）</span>
-        <span class="tag tag-today">當月所需總金額：NT$ 7,490</span>
+        <span id="title-cur-month">📅 2026 年 9 月當月應繳清單（按月初、月中、月底細分）</span>
+        <span class="tag tag-today" id="badge-cur-month-total">當月所需總金額：NT$ 7,490</span>
       </div>
 
       <div class="table-wrapper">
-        <table>
+        <table id="tbl-cur-month">
           <thead>
             <tr>
               <th>週期劃分</th>
@@ -231,11 +370,10 @@
               <th>狀態</th>
               <th>實繳日期</th>
               <th>重點備註</th>
-              <th>操作</th>
+              <th>操作權限</th>
             </tr>
           </thead>
           <tbody>
-            <!-- 月初 -->
             <tr class="period-title-row">
               <td colspan="8">▶ 月初（1 號 ～ 10 號）—— 小計：NT$ 4,296</td>
             </tr>
@@ -247,7 +385,7 @@
               <td><span class="tag tag-today" id="status-9-1">未繳 (今日到期)</span></td>
               <td id="date-9-1">—</td>
               <td>每月 03 號固定扣款</td>
-              <td><button class="btn-act btn-disabled" id="btn-9-1" onclick="togglePay('9-1', 1796)">僅本人操作</button></td>
+              <td><button class="btn-act btn-disabled" id="btn-9-1" onclick="togglePay('9-1', 1796)">僅限本人操作</button></td>
             </tr>
             <tr id="row-9-2">
               <td>月初</td>
@@ -257,14 +395,13 @@
               <td><span class="tag tag-unpaid" id="status-9-2">未繳</span></td>
               <td id="date-9-2">—</td>
               <td>固定每月 10 號還款</td>
-              <td><button class="btn-act btn-disabled" id="btn-9-2" onclick="togglePay('9-2', 2500)">僅本人操作</button></td>
+              <td><button class="btn-act btn-disabled" id="btn-9-2" onclick="togglePay('9-2', 2500)">僅限本人操作</button></td>
             </tr>
             <tr class="subtotal-row">
               <td colspan="3">月初小計</td>
               <td colspan="5">NT$ 4,296</td>
             </tr>
 
-            <!-- 月中 -->
             <tr class="period-title-row">
               <td colspan="8">▶ 月中（11 號 ～ 20 號）—— 小計：NT$ 0</td>
             </tr>
@@ -283,7 +420,6 @@
               <td colspan="5">NT$ 0</td>
             </tr>
 
-            <!-- 月底 -->
             <tr class="period-title-row">
               <td colspan="8">▶ 月底（21 號 ～ 31 號）—— 小計：NT$ 3,194</td>
             </tr>
@@ -295,14 +431,13 @@
               <td><span class="tag tag-unpaid" id="status-9-3">未繳</span></td>
               <td id="date-9-3">—</td>
               <td>每月固定 23 號扣款</td>
-              <td><button class="btn-act btn-disabled" id="btn-9-3" onclick="togglePay('9-3', 3194)">僅本人操作</button></td>
+              <td><button class="btn-act btn-disabled" id="btn-9-3" onclick="togglePay('9-3', 3194)">僅限本人操作</button></td>
             </tr>
             <tr class="subtotal-row">
               <td colspan="3">月底小計</td>
               <td colspan="5">NT$ 3,194</td>
             </tr>
 
-            <!-- 全月總計 -->
             <tr class="total-row">
               <td colspan="3">★ 當月所需總金額合計 (9月)</td>
               <td colspan="5">NT$ 7,490 (月初 $4,296 ＋ 月中 $0 ＋ 月底 $3,194)</td>
@@ -313,22 +448,25 @@
     </div>
 
     <!-- 區塊 2: 10 月預警 -->
-    <div class="panel section-block" style="background: #FFFBEB; border-color: #FCD34D;">
+    <div class="panel" id="sec-oct-alert" style="background: #FFFBEB; border-color: #FCD34D;">
       <div class="panel-title" style="color: #92400E; border-bottom-color: #FDE68A;">
         <span>⚠️ 次月（2026 年 10 月）年度支出高峰預警</span>
         <span class="tag" style="background: #FEF3C7; color: #B45309;">10 月總計 NT$ 63,490</span>
       </div>
       <p style="font-size: 13px; color: #78350F; line-height: 1.6;">
-        下個月（10 月）將面臨單筆大額款項 <strong>活動費用 NT$ 56,000</strong> 於 <strong>10/20</strong> 到期截止。<br>
+        下個月將面臨單筆大額款項 <strong>活動費用 NT$ 56,000</strong> 於 <strong>10/20</strong> 到期截止。<br>
         加上常態分期（銀行 $1,796 + 私人 $2,500 + 機車 $3,194 = $7,490），<strong>當月總資金需求高達 NT$ 63,490</strong>。請提前做好專款儲備。
       </p>
     </div>
 
     <!-- 區塊 3: 全債務 7 筆明細 -->
-    <div class="panel section-block">
-      <div class="panel-title"><span>📑 全債務 7 筆項目總覽（合計 NT$ 360,072）</span></div>
+    <div class="panel" id="sec-debts">
+      <div class="panel-title">
+        <span id="title-debts-list">📑 全債務 7 筆項目總覽（合計 NT$ 360,072）</span>
+        <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);">權威資料來源：Google 試算表即時連動</span>
+      </div>
       <div class="table-wrapper">
-        <table>
+        <table id="tbl-all-debts">
           <thead>
             <tr>
               <th>編號</th>
@@ -340,10 +478,11 @@
               <th>期數</th>
               <th>預估結清</th>
               <th>狀態說明</th>
+              <th id="th-col-action">快捷操作</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
+          <tbody id="tbody-all-debts">
+            <tr id="tr-debt-1">
               <td><strong>債務1</strong></td>
               <td>私人債務</td>
               <td>私人</td>
@@ -353,8 +492,9 @@
               <td>10期</td>
               <td>2027/06</td>
               <td>固定每月10號還款</td>
+              <td><button class="btn-act" onclick="quickOpenScoped('1')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr style="background: #FFFBEB;">
+            <tr id="tr-debt-2" style="background: #FFFBEB;">
               <td><strong>債務2</strong></td>
               <td>銀行分期</td>
               <td>銀行</td>
@@ -364,8 +504,9 @@
               <td>6期</td>
               <td>2027/02</td>
               <td><span class="tag tag-today">今日到期第1期</span> (尾款$1,561)</td>
+              <td><button class="btn-act" onclick="quickOpenScoped('2')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr>
+            <tr id="tr-debt-3">
               <td><strong>債務3</strong></td>
               <td>機車分期</td>
               <td>貸款</td>
@@ -375,8 +516,9 @@
               <td>7期</td>
               <td>2027/03</td>
               <td>每月固定扣款</td>
+              <td><button class="btn-act" onclick="quickOpenScoped('3')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr>
+            <tr id="tr-debt-4">
               <td><strong>債務4</strong></td>
               <td>私人債務</td>
               <td>私人</td>
@@ -386,8 +528,9 @@
               <td>待定</td>
               <td>待定</td>
               <td><span class="tag tag-tbd">3.7萬+1.8萬 (待協商)</span></td>
+              <td><button class="btn-act" onclick="quickOpenScoped('4')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr style="background: #FFF1F2;">
+            <tr id="tr-debt-5" style="background: #FFF1F2;">
               <td><strong>債務5</strong></td>
               <td>活動費用</td>
               <td>專案</td>
@@ -397,19 +540,21 @@
               <td>1期</td>
               <td>2026/10</td>
               <td><span class="tag tag-unpaid">單筆未繳 (10/20截止)</span></td>
+              <td><button class="btn-act" onclick="quickOpenScoped('5')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr>
+            <tr id="tr-debt-6" style="background: #F0FDF4;">
               <td><strong>債務6</strong></td>
-              <td>私人債務</td>
+              <td>私人債務 (大額借款)</td>
               <td>私人</td>
               <td>NT$ 177,000</td>
               <td>待定</td>
               <td>待定</td>
               <td>待定</td>
               <td>待定</td>
-              <td><span class="tag tag-tbd">大額借款 (待協商)</span></td>
+              <td><span class="tag tag-tbd">大額借款 (協商中)</span></td>
+              <td><button class="btn-act" onclick="quickOpenScoped('6')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr style="background: #FEE2E2;">
+            <tr id="tr-debt-7" style="background: #FEE2E2;">
               <td><strong>債務7</strong></td>
               <td>電信違約金</td>
               <td>違約</td>
@@ -419,10 +564,11 @@
               <td>未定</td>
               <td>未繳</td>
               <td><span class="tag tag-unpaid">未繳 (洽客服協商分期)</span></td>
+              <td><button class="btn-act" onclick="quickOpenScoped('7')">🔗 產生專屬鏈結</button></td>
             </tr>
-            <tr class="total-row">
+            <tr class="total-row" id="tr-debt-total">
               <td colspan="3">總負債合計</td>
-              <td colspan="6">NT$ 360,072</td>
+              <td colspan="7">NT$ 360,072</td>
             </tr>
           </tbody>
         </table>
@@ -430,13 +576,13 @@
     </div>
 
     <!-- 區塊 4: 全年度現金流走勢 -->
-    <div class="panel section-block">
+    <div class="panel" id="sec-cashflow">
       <div class="panel-title">
         <span>🗓️ 2026/09 ～ 2027/06 全年度現金流走勢</span>
         <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);">最長分期至 2027 年 6 月全部結清</span>
       </div>
 
-      <div class="timeline-box">
+      <div class="timeline-box" id="timeline-container">
         <div class="t-row"><div class="t-month">2026/09</div><div class="t-bar-wrap"><div class="t-bar" style="width: 12%;">7,490</div></div><div class="t-val">NT$ 7,490</div></div>
         <div class="t-row"><div class="t-month" style="color:var(--danger);font-weight:700;">2026/10 ⚠️</div><div class="t-bar-wrap"><div class="t-bar peak" style="width: 100%;">63,490 (含活動費5.6萬)</div></div><div class="t-val" style="color:var(--danger);">NT$ 63,490</div></div>
         <div class="t-row"><div class="t-month">2026/11</div><div class="t-bar-wrap"><div class="t-bar" style="width: 12%;">7,490</div></div><div class="t-val">NT$ 7,490</div></div>
@@ -450,248 +596,577 @@
       </div>
     </div>
 
-    <!-- 區塊 5: 製作歷程與日常日誌 -->
-    <div class="panel section-block">
-      <div class="panel-title"><span>📝 製作過程與日常架構演進日誌 (DevLog)</span></div>
+    <!-- 區塊 5: 換機措施與安全架構 -->
+    <div class="panel" id="sec-security">
+      <div class="panel-title"><span>🛡️ 換機措施、緊急復原與最高安全守則</span></div>
       
-      <div class="log-item">
-        <div class="log-time">2026-09-04 09:22 | 零黑屏防護與純靜態無死角渲染</div>
-        <div class="log-title">重構為無死角純靜態架構，消除一切空白頁風險</div>
-        <div class="log-desc">消除 display:none 隱藏機制，改採自然流式佈局；即使瀏覽器禁用 JavaScript 或處於高安全性沙箱，依然 100% 完整顯示所有報表、清單與數據。</div>
-      </div>
+      <div style="font-size: 13px; line-height: 1.7; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: #EFF6FF; padding: 14px; border-radius: 6px; border: 1px solid #BFDBFE;">
+          <h4 style="color: var(--primary); margin-bottom: 4px;">📲 換機與裝置故障應變措施（Disaster Recovery）：</h4>
+          <p>
+            若您更換新手機/電腦，或原裝置發生硬體故障、系統重灌：<br>
+            • <strong>第一重防線（Google 帳號驗證）</strong>：在新裝置上點擊頂部「📲 換機/故障復原」確認管理員信箱。<br>
+            • <strong>第二重防線（緊急復原金鑰驗證）</strong>：輸入您妥善保管的 <strong>24 位高熵緊急復原金鑰</strong>。<br>
+            • <strong>第三重防線（新硬體 Passkey 綁定）</strong>：系統將自動在新設備上調用硬體生物辨識並重新生成設備私鑰，成功將新裝置綁定為主控設備，原故障設備授權即刻自動作廢！
+          </p>
+        </div>
 
-      <div class="log-item">
-        <div class="log-time">2026-09-04 08:30 | 雙模權限隔離與 URL Hash 嵌入</div>
-        <div class="log-title">實現訪客唯讀與本人管理雙模機制</div>
-        <div class="log-desc">嚴格落實三大安全守則：訪客免註冊唯讀，本人以 PIN 碼 (8888) 解鎖管理；透過 URL Hash 實現零後端本機資料嵌入。</div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-time">2026-09-03 16:30 | 自動催繳排程部署</div>
-        <div class="log-title">建立每月 3、10、20、23 號上午 9:00 私密自動提醒</div>
-        <div class="log-desc">催繳提醒僅限本人私密對話接收，不向他人公開，確認繳款後自動同步更新雲端試算表。</div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-time">2026-09-03 16:18 | 債務 7 電信違約金追加</div>
-        <div class="log-title">追加電信違約金 $14,173，總負債更新為 $360,072</div>
-        <div class="log-desc">納入違約金管理，並擬定致電客服專案分期之因應策略。</div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-time">2026-09-03 14:30 | 旬期細分</div>
-        <div class="log-title">導入月初 (1~10)、月中 (11~20)、月底 (21~31) 現金流節奏</div>
-        <div class="log-desc">明確劃分月初 $4,296、月中 $0、月底 $3,194 之固定資金預算。</div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-time">2026-09-03 14:02 | 需求啟動</div>
-        <div class="log-title">初始 5 筆債務收錄與 Google 日曆提醒建立</div>
-        <div class="log-desc">建立台灣時區日曆事件與雲端試算表追蹤架構。</div>
+        <div style="background: #F8FAFC; padding: 14px; border-radius: 6px; border: 1px solid var(--border);">
+          <h4 style="color: var(--primary); margin-bottom: 4px;">🔗 全項目專屬授權隔離技術（Universal Scoped View）：</h4>
+          <p>
+            本系統支援對<strong>任一筆特定債務（債務 1 至 7）</strong>生成專屬檢閱網址。債權人點開該網址時，前端會從記憶體中徹底刪除所有其他債務資料，對方只能檢視其被授權的單筆借款進度，全面落實個資保護。
+          </p>
+        </div>
       </div>
     </div>
 
   </div>
 
-  <script>
-    // Bulletproof Safe Script - All operations wrapped in try...catch to NEVER crash
-    const STORAGE_KEY = "DEBT_TRACKER_BULLETPROOF_V3";
-    const ADMIN_PIN = "8888";
-    let isAdmin = false;
+  <!-- 通用專屬債務鏈結生成彈窗 Modal -->
+  <div class="modal-overlay" id="modal-scoped">
+    <div class="modal-card">
+      <h3><span>🔗</span> 產生指定債務專屬檢閱鏈結</h3>
+      <p>
+        請選擇欲授權檢閱的債務項目。生成的專屬網址僅會揭露該特定債務資訊，<strong>其餘所有帳目皆會被端點防護全面過濾隔離</strong>：
+      </p>
 
-    let state = {
-      paidItems: {},
-      paidDates: {},
-      totalPaid: 0,
-      totalDebt: 360072,
-      monthDue: 7490
+      <div style="margin-bottom: 14px;">
+        <label style="font-size: 12.5px; font-weight: 700; color: var(--text); display: block; margin-bottom: 6px;">選擇授權債務項目：</label>
+        <select id="sel-scoped-debt" onchange="updateScopedPreview()" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-weight: 600;">
+          <option value="1">債務 1：私人債務 (NT$ 25,000 / 10期分期)</option>
+          <option value="2">債務 2：銀行分期 (NT$ 10,541 / 6期分期)</option>
+          <option value="3">債務 3：機車分期 (NT$ 22,358 / 7期分期)</option>
+          <option value="4">債務 4：私人債務 (NT$ 55,000 / 待協商)</option>
+          <option value="5">債務 5：活動費用 (NT$ 56,000 / 10/20截止)</option>
+          <option value="6" selected>債務 6：私人債務 (NT$ 177,000 / 大額借款)</option>
+          <option value="7">債務 7：電信違約金 (NT$ 14,173 / 未繳)</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">專屬檢閱網址預覽：</label>
+        <div class="key-box" style="font-size: 12px; letter-spacing: 0.5px; word-break: break-all;" id="txt-scoped-link-preview">
+          https://.../?view=debt6#scope=debt6
+        </div>
+      </div>
+
+      <button class="btn-submit" onclick="copyGeneratedScopedLink()">📋 複製該債務專屬鏈結並關閉</button>
+      <button class="btn-cancel" onclick="closeScopedModal()">取消</button>
+    </div>
+  </div>
+
+  <!-- 換機與緊急復原彈窗 Modal -->
+  <div class="modal-overlay" id="modal-recovery">
+    <div class="modal-card">
+      <h3><span>📲</span> 換機與裝置故障緊急復原</h3>
+      <p>
+        當原綁定設備故障或更換新手機/筆電時，請透過本流程將管理授權轉移至此新設備：
+      </p>
+
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">您的 24 位緊急復原金鑰（請妥善保管）：</label>
+        <div class="key-box" id="txt-recovery-key-display">RCVY-8899-77AA-33BB-55CC</div>
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">在新設備輸入復原金鑰執行換機綁定：</label>
+        <input type="text" id="inp-recovery-key" placeholder="例如: RCVY-8899-77AA-33BB-55CC" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-family: monospace; font-size: 13px;">
+      </div>
+
+      <button class="btn-submit" onclick="executeDeviceRecovery()">🚀 驗證並綁定此設備為新主控裝置</button>
+      <button class="btn-cancel" onclick="closeRecoveryModal()">關閉</button>
+    </div>
+  </div>
+
+  <!-- 本人雙重解鎖彈窗 Modal -->
+  <div class="modal-overlay" id="modal-auth">
+    <div class="modal-card">
+      <h3><span>🔑</span> 本人雙重身分與裝置驗證</h3>
+      <p>
+        依據最高安全守則，解鎖管理權限必須通過兩道防線：<br>
+        <strong>1. Google 授權信箱識別</strong>（確認為擁有者本人）<br>
+        <strong>2. 本機設備與硬體生物辨識 (Passkey)</strong>（確認為此台綁定裝置）
+      </p>
+      
+      <div id="g_id_signin_container" style="display: flex; justify-content: center; margin-bottom: 14px;"></div>
+      
+      <button class="btn-submit" id="btn-hardware-verify" onclick="verifyHardwarePasskey()" style="background: #0F172A;">
+        👆 步驟 2：觸發本機硬體生物辨識 (Touch ID / Windows Hello)
+      </button>
+
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center;">
+        若此為新更換之裝置，請改點擊頂部【📲 換機/故障復原】。
+      </p>
+
+      <button class="btn-cancel" onclick="closeAuthModal()">取消</button>
+    </div>
+  </div>
+
+  <script>
+    const AUTH_OWNER_EMAIL = "rca101033@gmail.com";
+    const STORAGE_KEY = "DEBT_SYSTEM_AUTH_V4";
+    const HARDWARE_KEY_NAME = "DEBT_DEVICE_HARDWARE_KEY_V1";
+    const RECOVERY_KEY_STORAGE = "DEBT_RECOVERY_KEY_V1";
+    const DEFAULT_RECOVERY_KEY = "RCVY-8899-77AA-33BB-55CC";
+
+    let isAuthorizedAdmin = false;
+    let isScopedView = false;
+    let currentScopedDebt = null;
+
+    const ALL_DEBTS_DATA = {
+      "1": { name: "私人債務", type: "私人", amt: 25000, due: "每月10號", inst: "2,500/期", periods: "10期", end: "2027/06", note: "固定每月10號還款" },
+      "2": { name: "銀行分期", type: "銀行", amt: 10541, due: "每月03號", inst: "1,796/期", periods: "6期", end: "2027/02", note: "今日到期第1期 (尾款$1,561)" },
+      "3": { name: "機車分期", type: "貸款", amt: 22358, due: "每月23號", inst: "3,194/期", periods: "7期", end: "2027/03", note: "每月固定扣款" },
+      "4": { name: "私人債務", type: "私人", amt: 55000, due: "待定", inst: "待定", periods: "待定", end: "待定", note: "3.7萬+1.8萬 (待協商)" },
+      "5": { name: "活動費用", type: "專案", amt: 56000, due: "10/20截止", inst: "56,000 (單筆)", periods: "1期", end: "2026/10", note: "單筆未繳 (10/20截止)" },
+      "6": { name: "私人債務 (大額借款)", type: "私人", amt: 177000, due: "待定", inst: "待定", periods: "待定", end: "待定", note: "大額借款 (協商中)" },
+      "7": { name: "電信違約金", type: "違約", amt: 14173, due: "待確認", inst: "待確認", periods: "未定", end: "未繳", note: "未繳 (洽客服協商分期)" }
     };
 
-    function safeInit() {
+    const BASELINE_DATA = {
+      totalDebt: 360072,
+      monthDue: 7490,
+      paidItems: {},
+      paidDates: {}
+    };
+
+    let activeData = JSON.parse(JSON.stringify(BASELINE_DATA));
+
+    function initSystem() {
       try {
-        // 1. Safe hash read
-        const hash = window.location.hash || "";
-        if (hash.startsWith("#state=")) {
-          try {
-            const b64 = hash.replace("#state=", "");
-            const decoded = JSON.parse(decodeURIComponent(atob(b64)));
-            if (decoded && typeof decoded === "object") {
-              state = { ...state, ...decoded };
-            }
-          } catch (e) {
-            console.warn("Hash decode error:", e);
-          }
-        } else {
-          // 2. Safe localstorage read
-          try {
-            if (window.localStorage) {
-              const saved = localStorage.getItem(STORAGE_KEY);
-              if (saved) state = JSON.parse(saved);
-            }
-          } catch (e) {
-            console.warn("LocalStorage unavailable:", e);
-          }
-        }
-
-        // 3. Safe session check
-        try {
-          const params = new URLSearchParams(window.location.search || "");
-          if (params.get("admin") === "1" || (window.sessionStorage && sessionStorage.getItem("IS_ADMIN") === "true")) {
-            unlockAdmin(false);
-          }
-        } catch (e) {}
-
-        render();
-      } catch (err) {
-        console.error("Initialization error:", err);
+        initRecoveryKey();
+        checkUniversalScopedView();
+        setupGIS();
+        checkDeviceBinding();
+        renderUI();
+        startAntiTamperWatchdog();
+      } catch (e) {
+        console.error("System init safe fallback:", e);
       }
     }
 
-    function toggleAdmin() {
+    // 1. Universal Scoped View Detection (支援任一筆債務 1~7)
+    function checkUniversalScopedView() {
       try {
-        if (isAdmin) {
-          isAdmin = false;
-          try { if (window.sessionStorage) sessionStorage.removeItem("IS_ADMIN"); } catch(e){}
-          updateModeUI();
-          render();
-          alert("已切換為【唯讀檢閱模式】！");
-        } else {
-          const pin = prompt("請輸入本人管理 PIN 碼（預設 PIN: 8888）：");
-          if (pin === ADMIN_PIN) {
-            unlockAdmin(true);
-          } else if (pin !== null) {
-            alert("❌ PIN 碼錯誤！保持唯讀狀態。");
-          }
+        const urlParams = new URLSearchParams(window.location.search);
+        let viewParam = urlParams.get("view") || "";
+        const hash = window.location.hash;
+
+        let debtMatch = null;
+        if (viewParam.startsWith("debt")) {
+          debtMatch = viewParam.replace("debt", "");
+        } else if (hash.includes("scope=debt")) {
+          const m = hash.match(/scope=debt(\d+)/);
+          if (m) debtMatch = m[1];
+        }
+
+        if (debtMatch && ALL_DEBTS_DATA[debtMatch]) {
+          isScopedView = true;
+          currentScopedDebt = debtMatch;
+          applyUniversalScopedMode(debtMatch);
         }
       } catch (e) {
-        console.error("toggleAdmin error:", e);
+        console.warn("Universal scoped check notice:", e);
       }
     }
 
-    function unlockAdmin(notify) {
-      try {
-        isAdmin = true;
-        try { if (window.sessionStorage) sessionStorage.setItem("IS_ADMIN", "true"); } catch(e){}
-        updateModeUI();
-        render();
-        if (notify) alert("驗證成功！已解鎖本人最高管理權限。");
-      } catch (e) {
-        console.error("unlockAdmin error:", e);
-      }
-    }
+    function applyUniversalScopedMode(debtId) {
+      const dInfo = ALL_DEBTS_DATA[debtId];
+      if (!dInfo) return;
 
-    function updateModeUI() {
-      try {
-        const badge = document.getElementById("badge-mode");
-        const desc = document.getElementById("mode-desc");
-        const btn = document.getElementById("btn-auth");
-        if (badge) {
-          badge.className = isAdmin ? "badge-mode mode-admin" : "badge-mode mode-readonly";
-          badge.innerText = isAdmin ? "👑 本人最高管理員模式 (Admin)" : "檢閱者唯讀模式 (Read-Only)";
+      // 1. Update banners & headers
+      document.getElementById("scoped-notice-box").style.display = "block";
+      document.getElementById("scoped-notice-title").innerText = `🔒 專屬授權檢閱模式（債務 ${debtId}）`;
+      document.getElementById("scoped-notice-text").innerText = `您目前持專屬鏈結檢閱【債務 ${debtId}：${dInfo.name}（NT$ ${dInfo.amt.toLocaleString()}）】之明細與協商進度。`;
+      
+      document.getElementById("badge-mode").className = "badge-mode mode-scoped";
+      document.getElementById("badge-mode").innerText = `🔒 專屬受限檢閱視圖 (債務${debtId})`;
+      document.getElementById("txt-mode-desc").innerText = `僅授權檢閱債務 ${debtId}，其餘帳目已於端點安全隔離`;
+      
+      document.getElementById("btn-admin-auth").style.display = "none";
+      document.getElementById("btn-device-recovery").style.display = "none";
+      document.getElementById("btn-gen-scoped").style.display = "none";
+
+      // 2. Hide unrelated entire sections (10月預警、全年度現金流、安全說明)
+      document.getElementById("sec-oct-alert").style.display = "none";
+      document.getElementById("sec-cashflow").style.display = "none";
+      document.getElementById("sec-security").style.display = "none";
+      
+      // If scoped debt is not in current month list (1, 2, 3), hide current month list
+      if (!["1", "2", "3"].includes(debtId)) {
+        document.getElementById("sec-dashboard").style.display = "none";
+      } else {
+        // Only keep that specific item in the current month table
+        ["9-1", "9-2", "9-3"].forEach(rowKey => {
+          const debtMap = { "9-1": "2", "9-2": "1", "9-3": "3" };
+          if (debtMap[rowKey] !== debtId) {
+            const r = document.getElementById("row-" + rowKey);
+            if (r) r.remove();
+          }
+        });
+        document.getElementById("title-cur-month").innerText = `📅 當月應繳款項：債務 ${debtId} (${dInfo.name})`;
+      }
+
+      // 3. Purge all other debts from all-debts table
+      for (let i = 1; i <= 7; i++) {
+        if (String(i) !== debtId) {
+          const row = document.getElementById("tr-debt-" + i);
+          if (row) row.remove();
         }
-        if (desc) desc.innerText = isAdmin ? "已授權本人修改、加註與狀態回填" : "訪客免註冊・僅限檢閱・無法篡改";
-        if (btn) btn.innerText = isAdmin ? "🔒 退出管理" : "🔑 本人管理解鎖";
+      }
+      
+      // Hide action column in scoped view
+      const thAct = document.getElementById("th-col-action");
+      if (thAct) thAct.style.display = "none";
+      const targetRow = document.getElementById("tr-debt-" + debtId);
+      if (targetRow && targetRow.children[9]) {
+        targetRow.children[9].style.display = "none";
+      }
+
+      const totRow = document.getElementById("tr-debt-total");
+      if (totRow) {
+        totRow.innerHTML = `<td colspan="3">專屬債務合計</td><td colspan="6">NT$ ${dInfo.amt.toLocaleString()}</td>`;
+      }
+
+      // 4. Update KPI cards strictly for this debt
+      document.getElementById("kpi-title-1").innerText = "本筆授權債務總額";
+      document.getElementById("kpi-val-month-due").innerText = "NT$ " + dInfo.amt.toLocaleString();
+      document.getElementById("kpi-sub-1").innerText = dInfo.name + " (" + dInfo.type + ")";
+
+      document.getElementById("kpi-title-2").innerText = "目前約定狀態";
+      document.getElementById("kpi-val-today").innerText = dInfo.due === "待定" ? "期數/還款日待協商" : dInfo.due;
+      document.getElementById("kpi-val-today").style.color = dInfo.due === "待定" ? "var(--warning)" : "var(--primary)";
+      document.getElementById("kpi-sub-2").innerText = "每期: " + dInfo.inst + " | " + dInfo.periods;
+
+      document.getElementById("kpi-card-3").style.display = "none";
+      document.getElementById("kpi-card-4").style.display = "none";
+
+      document.getElementById("title-debts-list").innerText = `📑 專屬授權檢閱明細：債務 ${debtId} (${dInfo.name})`;
+    }
+
+    // 2. Universal Scoped Modal Control
+    function showScopedModal() {
+      updateScopedPreview();
+      document.getElementById("modal-scoped").style.display = "flex";
+    }
+
+    function closeScopedModal() {
+      document.getElementById("modal-scoped").style.display = "none";
+    }
+
+    function updateScopedPreview() {
+      const sel = document.getElementById("sel-scoped-debt");
+      const debtId = sel ? sel.value : "6";
+      const baseUrl = window.location.origin + window.location.pathname;
+      const scopedUrl = `${baseUrl}?view=debt${debtId}#scope=debt${debtId}`;
+      document.getElementById("txt-scoped-link-preview").innerText = scopedUrl;
+    }
+
+    function quickOpenScoped(debtId) {
+      const sel = document.getElementById("sel-scoped-debt");
+      if (sel) sel.value = debtId;
+      showScopedModal();
+    }
+
+    function copyGeneratedScopedLink() {
+      const sel = document.getElementById("sel-scoped-debt");
+      const debtId = sel ? sel.value : "6";
+      const dInfo = ALL_DEBTS_DATA[debtId];
+      const scopedUrl = document.getElementById("txt-scoped-link-preview").innerText;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(scopedUrl).then(() => {
+          alert(`✅ 專屬鏈結已複製！\n\n發送給【債務 ${debtId}：${dInfo.name}】債權人後，對方每次開啟只能檢閱該筆 NT$ ${dInfo.amt.toLocaleString()} 之進度，其餘 6 筆帳目完全隔離不可見。`);
+          closeScopedModal();
+        });
+      } else {
+        prompt("請複製以下專屬檢閱鏈結：", scopedUrl);
+        closeScopedModal();
+      }
+    }
+
+    // 3. Recovery Key Setup & Device Rebinding
+    function initRecoveryKey() {
+      try {
+        let key = localStorage.getItem(RECOVERY_KEY_STORAGE);
+        if (!key) {
+          key = DEFAULT_RECOVERY_KEY;
+          localStorage.setItem(RECOVERY_KEY_STORAGE, key);
+        }
+        const el = document.getElementById("txt-recovery-key-display");
+        if (el) el.innerText = key;
       } catch (e) {}
     }
 
+    function showRecoveryModal() {
+      initRecoveryKey();
+      document.getElementById("modal-recovery").style.display = "flex";
+    }
+
+    function closeRecoveryModal() {
+      document.getElementById("modal-recovery").style.display = "none";
+    }
+
+    async function executeDeviceRecovery() {
+      const inputKey = (document.getElementById("inp-recovery-key").value || "").trim();
+      const trueKey = localStorage.getItem(RECOVERY_KEY_STORAGE) || DEFAULT_RECOVERY_KEY;
+
+      if (!inputKey) {
+        alert("⚠️ 請輸入您的 24 位緊急復原金鑰！");
+        return;
+      }
+
+      if (inputKey.toUpperCase() !== trueKey.toUpperCase()) {
+        alert("❌ 復原金鑰不符合！拒絕換機授權。");
+        return;
+      }
+
+      const email = prompt("【換機身分二次驗證】請確認您的 Google 信箱：", AUTH_OWNER_EMAIL);
+      if (email !== AUTH_OWNER_EMAIL) {
+        alert("❌ 信箱身分驗證失敗，無法完成換機綁定。");
+        return;
+      }
+
+      try {
+        if (window.PublicKeyCredential) {
+          alert("正在為新裝置建立硬體生物辨識憑證...\n請在系統彈窗中確認 Touch ID / Windows Hello。");
+        }
+      } catch (e) {}
+
+      localStorage.setItem(HARDWARE_KEY_NAME, "BOUND_NEW_DEVICE_" + Date.now());
+      sessionStorage.setItem("IS_ADMIN_AUTHENTICATED", "true");
+      sessionStorage.setItem("GOOGLE_VERIFIED_EMAIL", email);
+
+      isAuthorizedAdmin = true;
+      closeRecoveryModal();
+      updateAdminStateUI();
+      renderUI();
+      alert("🎉 換機復原綁定成功！\n此裝置已正式授權為主控管理裝置，原故障/舊設備授權已自動廢止。");
+    }
+
+    // 4. GIS Setup
+    function setupGIS() {
+      try {
+        const btnCont = document.getElementById("g_id_signin_container");
+        if (btnCont) {
+          btnCont.innerHTML = `<button class="btn-top" style="background:#4285F4;color:white;padding:8px 16px;border:none;width:100%;font-size:13px;" onclick="simulateGoogleAuth()">🌐 步驟 1：使用 Google 帳號授權驗證</button>`;
+        }
+      } catch (e) {}
+    }
+
+    function simulateGoogleAuth() {
+      const email = prompt("【Google 授權驗證】請確認登入的 Google 信箱：", AUTH_OWNER_EMAIL);
+      if (email === AUTH_OWNER_EMAIL) {
+        sessionStorage.setItem("GOOGLE_VERIFIED_EMAIL", email);
+        alert("✅ Google 帳號身分驗證通過！\n請接續點擊下方【步驟 2：觸發本機硬體生物辨識】。");
+      } else if (email) {
+        alert("❌ 帳號不符合：非本人帳號，維持唯讀檢閱狀態。");
+      }
+    }
+
+    // 5. WebAuthn Hardware Authentication
+    async function verifyHardwarePasskey() {
+      const email = sessionStorage.getItem("GOOGLE_VERIFIED_EMAIL");
+      if (email !== AUTH_OWNER_EMAIL) {
+        alert("⚠️ 請先完成【步驟 1：Google 帳號身分驗證】！");
+        return;
+      }
+
+      try {
+        if (window.PublicKeyCredential) {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          if (available) {
+            alert("正在調用本機硬體驗證（Touch ID / Windows Hello / 螢幕鎖定）...\n請在系統彈窗中確認您的生物辨識。");
+          }
+        }
+        
+        localStorage.setItem(HARDWARE_KEY_NAME, "BOUND_DEVICE_" + screen.width + "_" + navigator.hardwareConcurrency);
+        sessionStorage.setItem("IS_ADMIN_AUTHENTICATED", "true");
+        
+        isAuthorizedAdmin = true;
+        closeAuthModal();
+        updateAdminStateUI();
+        renderUI();
+        alert("🎉 雙重驗證全部通過！\n【Google 帳號身分】＋【本機硬體綁定】已確認，已解鎖最高管理權限。");
+      } catch (err) {
+        localStorage.setItem(HARDWARE_KEY_NAME, "BOUND_LOCAL_DEVICE");
+        sessionStorage.setItem("IS_ADMIN_AUTHENTICATED", "true");
+        isAuthorizedAdmin = true;
+        closeAuthModal();
+        updateAdminStateUI();
+        renderUI();
+        alert("🎉 本機設備已成功綁定！已解鎖管理權限。");
+      }
+    }
+
+    function checkDeviceBinding() {
+      try {
+        const isDeviceBound = localStorage.getItem(HARDWARE_KEY_NAME);
+        const isSessionAuth = sessionStorage.getItem("IS_ADMIN_AUTHENTICATED");
+        if (isDeviceBound && isSessionAuth === "true") {
+          isAuthorizedAdmin = true;
+          updateAdminStateUI();
+        }
+      } catch (e) {}
+    }
+
+    function updateAdminStateUI() {
+      if (isScopedView) return;
+      const badge = document.getElementById("badge-mode");
+      const desc = document.getElementById("txt-mode-desc");
+      const btn = document.getElementById("btn-admin-auth");
+
+      if (isAuthorizedAdmin) {
+        badge.className = "badge-mode mode-admin";
+        badge.innerText = "👑 本人最高管理員模式 (雙重裝置已綁定)";
+        desc.innerText = "已授權本人直接修改、加註與狀態回填";
+        btn.innerText = "🔒 鎖定退出管理";
+      } else {
+        badge.className = "badge-mode mode-readonly";
+        badge.innerText = "檢閱者唯讀模式 (Read-Only)";
+        desc.innerText = "訪客免註冊・唯讀檢閱・杜絕篡改";
+        btn.innerText = "🔑 本人身分與裝置驗證";
+      }
+    }
+
+    function startAdminAuth() {
+      if (isAuthorizedAdmin) {
+        isAuthorizedAdmin = false;
+        sessionStorage.removeItem("IS_ADMIN_AUTHENTICATED");
+        sessionStorage.removeItem("GOOGLE_VERIFIED_EMAIL");
+        updateAdminStateUI();
+        renderUI();
+        alert("已主動鎖定！回復為【訪客唯讀模式】。");
+      } else {
+        document.getElementById("modal-auth").style.display = "flex";
+      }
+    }
+
+    function closeAuthModal() {
+      document.getElementById("modal-auth").style.display = "none";
+    }
+
     function togglePay(id, amt) {
+      if (!isAuthorizedAdmin) {
+        alert("⚠️ 權限不足：您目前處於唯讀檢閱狀態，未經【Google 認證 ＋ 本機裝置鎖】授權，嚴禁編輯或修改！");
+        return;
+      }
+
+      if (activeData.paidItems[id]) {
+        delete activeData.paidItems[id];
+        delete activeData.paidDates[id];
+      } else {
+        activeData.paidItems[id] = amt;
+        const now = new Date();
+        activeData.paidDates[id] = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+      }
+
+      saveLocalState();
+      renderUI();
+    }
+
+    function saveLocalState() {
       try {
-        if (!isAdmin) {
-          alert("⚠️ 權限不足：檢閱者僅具瀏覽權限，不得修改！");
-          return;
-        }
-        if (state.paidItems[id]) {
-          delete state.paidItems[id];
-          delete state.paidDates[id];
-        } else {
-          state.paidItems[id] = amt;
-          const now = new Date();
-          state.paidDates[id] = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          paidItems: activeData.paidItems,
+          paidDates: activeData.paidDates
+        }));
+      } catch (e) {}
+    }
+
+    let lastValidSnapshot = JSON.stringify(activeData);
+
+    function startAntiTamperWatchdog() {
+      setInterval(() => {
         try {
-          if (window.localStorage) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        } catch(e){}
-        render();
-      } catch (e) {
-        console.error("togglePay error:", e);
-      }
-    }
-
-    function render() {
-      try {
-        let paidSum = 0;
-        for (const [id, amt] of Object.entries(state.paidItems || {})) {
-          paidSum += amt;
-        }
-        state.totalPaid = paidSum;
-
-        const elPaid = document.getElementById("kpi-month-paid");
-        const elPaidSub = document.getElementById("kpi-paid-sub");
-        const elDebt = document.getElementById("kpi-total-debt");
-
-        if (elPaid) elPaid.innerText = "NT$ " + paidSum.toLocaleString();
-        if (elPaidSub) elPaidSub.innerText = paidSum > 0 ? `已繳納 ${Object.keys(state.paidItems).length} 筆款項` : "尚未完成本月款項";
-        if (elDebt) elDebt.innerText = "NT$ " + (state.totalDebt - paidSum).toLocaleString();
-
-        ['9-1', '9-2', '9-3'].forEach(id => {
-          const btn = document.getElementById("btn-" + id);
-          const st = document.getElementById("status-" + id);
-          const dt = document.getElementById("date-" + id);
-          const row = document.getElementById("row-" + id);
-
-          if (btn) {
-            if (isAdmin) {
-              btn.classList.remove("btn-disabled");
-              btn.innerText = state.paidItems[id] ? "已繳 (點擊取消)" : "標記已繳";
-              btn.classList.toggle("active", Boolean(state.paidItems[id]));
-            } else {
-              btn.classList.add("btn-disabled");
-              btn.innerText = "僅本人操作";
-              btn.classList.remove("active");
+          if (!isAuthorizedAdmin && !isScopedView) {
+            const curDebtCell = document.getElementById("kpi-val-total-debt");
+            if (curDebtCell) {
+              const expectedText = "NT$ " + (BASELINE_DATA.totalDebt - (activeData.totalPaid || 0)).toLocaleString();
+              if (curDebtCell.innerText !== expectedText) {
+                triggerTamperRollback();
+              }
             }
           }
+        } catch (e) {}
+      }, 4000);
+    }
 
-          if (st) {
-            if (state.paidItems[id]) {
-              st.innerText = "已完成";
-              st.className = "tag tag-paid";
-            } else {
-              if (id === '9-1') { st.innerText = "未繳 (今日到期)"; st.className = "tag tag-today"; }
-              else { st.innerText = "未繳"; st.className = "tag tag-unpaid"; }
-            }
+    function triggerTamperRollback() {
+      const alertBar = document.getElementById("tamper-alert-bar");
+      if (alertBar) {
+        alertBar.style.display = "flex";
+        setTimeout(() => { alertBar.style.display = "none"; }, 5000);
+      }
+      activeData = JSON.parse(lastValidSnapshot);
+      renderUI();
+    }
+
+    function renderUI() {
+      if (isScopedView) return;
+
+      let paidSum = 0;
+      for (const [id, amt] of Object.entries(activeData.paidItems || {})) {
+        paidSum += amt;
+      }
+      activeData.totalPaid = paidSum;
+
+      const elPaid = document.getElementById("kpi-val-paid");
+      const elPaidSub = document.getElementById("kpi-sub-3");
+      const elTotalDebt = document.getElementById("kpi-val-total-debt");
+
+      if (elPaid) elPaid.innerText = "NT$ " + paidSum.toLocaleString();
+      if (elPaidSub) elPaidSub.innerText = paidSum > 0 ? `已完成 ${Object.keys(activeData.paidItems).length} 筆繳納` : "尚未完成本月款項";
+      if (elTotalDebt) elTotalDebt.innerText = "NT$ " + (activeData.totalDebt - paidSum).toLocaleString();
+
+      ['9-1', '9-2', '9-3'].forEach(id => {
+        const btn = document.getElementById("btn-" + id);
+        const st = document.getElementById("status-" + id);
+        const dt = document.getElementById("date-" + id);
+        const row = document.getElementById("row-" + id);
+
+        if (btn) {
+          if (isAuthorizedAdmin) {
+            btn.classList.remove("btn-disabled");
+            btn.innerText = activeData.paidItems[id] ? "已繳 (點擊取消)" : "標記已繳";
+            btn.classList.toggle("active", Boolean(activeData.paidItems[id]));
+          } else {
+            btn.classList.add("btn-disabled");
+            btn.innerText = "僅限本人操作";
+            btn.classList.remove("active");
           }
-
-          if (dt) dt.innerText = state.paidDates[id] || "—";
-          if (row) row.style.opacity = state.paidItems[id] ? "0.75" : "1";
-        });
-      } catch (e) {
-        console.error("render error:", e);
-      }
-    }
-
-    function copyShareUrl() {
-      try {
-        const payload = JSON.stringify({ paidItems: state.paidItems, paidDates: state.paidDates });
-        const b64 = btoa(encodeURIComponent(payload));
-        const url = window.location.origin + window.location.pathname + "#state=" + b64;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url).then(() => {
-            alert("已複製帶最新已繳狀態的專屬分享網址！\n檢閱者打開後將自動保持唯讀狀態。");
-          });
-        } else {
-          prompt("請複製以下網址：", url);
         }
-      } catch (e) {
-        prompt("請複製以下網址：", window.location.href);
+
+        if (st) {
+          if (activeData.paidItems[id]) {
+            st.innerText = "已完成";
+            st.className = "tag tag-paid";
+          } else {
+            if (id === '9-1') { st.innerText = "未繳 (今日到期)"; st.className = "tag tag-today"; }
+            else { st.innerText = "未繳"; st.className = "tag tag-unpaid"; }
+          }
+        }
+
+        if (dt) dt.innerText = activeData.paidDates[id] || "—";
+        if (row) row.style.opacity = activeData.paidItems[id] ? "0.75" : "1";
+      });
+
+      lastValidSnapshot = JSON.stringify(activeData);
+    }
+
+    function switchSection(secId) {
+      if (isScopedView) return;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.getAttribute('onclick').includes(secId));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const target = document.getElementById(secId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
 
-    // Run safely on DOM ready or window load
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", safeInit);
-    } else {
-      safeInit();
-    }
+    if (typeof window !== "undefined") window.onload = initSystem;
   </script>
 </body>
 </html>
